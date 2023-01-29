@@ -1,7 +1,7 @@
 # Disable-BD-PROCHOT-on-LINUX
 This repository provides steps to disable BD PROCHOT at boot time in a Linux system.
 ## Prerequisites
-- [msr-tools](https://github.com/Intel/msr-tools) installato
+- [msr-tools](https://github.com/Intel/msr-tools)
 	- Arch Linux:
 	```sudo pacman -S msr-tools```
 	- Ubuntu and derivatives:
