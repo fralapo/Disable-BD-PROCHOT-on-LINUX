@@ -1,7 +1,6 @@
 #!/bin/bash
 printf "Disabilitare BD PROCHOT in LINUX\n\n"
 printf "Uno script contenente i comandi per disabilitare BD PROCHOT verrà creato e posizionato in una directory di avvio con privilegi di amministratore\n\n"
-
 while true; do
 	read -rp "Vuoi continuare? [y/N]: " yn
 		case $yn in
