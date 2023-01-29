@@ -11,7 +11,7 @@ while true; do
     done
 if [ "$(id -u)" != 0 ]; then
 	printf "Questo script richiede privilegi di amministratore\
-	sudo "$0" "$@"
+	sudo "$0" "$@" "
 	exit
 fi
 printf "Installazione dei pacchetti necessari...\n\n"
@@ -22,7 +22,7 @@ printf "3. Fedora e derivati\n"
 printf "4. CentOS\n\n"
 
 while true; do
-	read -rp "Scegli un'opzione [1/2/3/4]: " option
+	read -rp "Choose an option [1/2/3/4]: " option
 		case $option in
 			1 ) sudo pacman -S msr-tools; break;;
 			2 ) sudo apt-get install msr-tools; break;;
@@ -60,4 +60,6 @@ while true; do
 		case $yn in
 			[Yy]* ) sudo reboot; break;;
 			[Nn]* ) exit;;
-			* ) printf "Errore: scrivi solo 'y' o 'n'\n\n
+			* ) printf "Errore: scrivi solo 'y' o 'n'\n";;
+esac
+done
