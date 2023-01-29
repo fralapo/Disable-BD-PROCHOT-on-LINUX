@@ -1,21 +1,21 @@
 #!/bin/bash
-printf "Disabilitare BD PROCHOT in LINUX\n\n"
-printf "Uno script contenente i comandi per disabilitare BD PROCHOT verrà creato e posizionato in una directory di avvio con privilegi di amministratore\n\n"
+printf "Disabling BD PROCHOT in LINUX\n\n"
+printf "This script containing the commands to disable BD PROCHOT will be created and placed in a boot directory with administrator privileges\n\n"
 while true; do
-	read -rp "Vuoi continuare? [y/N]: " yn
+	read -rp "Do you want to continue? [y/N]: " yn
 		case $yn in
 			[Yy]* ) break;;
 			[Nn]* ) exit;;
-			* ) printf "Errore: scrivi solo 'y' o 'n'\n";;
+			* ) printf "Error: write only 'y' or 'n'\n";;
 		esac
     done
 if [ "$(id -u)" != 0 ]; then
-	printf "Questo script richiede privilegi di amministratore\
+	printf "This script requires administrator privileges\
 	sudo "$0" "$@" "
 	exit
 fi
-printf "Installazione dei pacchetti necessari...\n\n"
-printf "Per quale distribuzione vuoi installare?\n\n"
+printf "Installation of necessary packages...\n\n"
+printf "Which distribution do you want to install?\n\n"
 printf "1. Arch Linux\n"
 printf "2. Ubuntu e derivati\n"
 printf "3. Fedora e derivati\n"
@@ -28,38 +28,27 @@ while true; do
 			2 ) sudo apt-get install msr-tools; break;;
 			3 ) sudo dnf install msr-tools; break;;
 			4 ) sudo yum install msr-tools; break;;
-			* ) printf "Errore: scrivi solo un numero tra 1 e 4\n\n";;
+			* ) printf "Error: only write a number between 1 and 4";;
 		esac
     done
     
-sudo nano /usr/local/bin/disable_bd_prochot.sh << EOF
-#!/bin/bash
-modprobe msr
-rdmsr 0x1FC
-wrmsr 0x1FC value
-EOF
+sudo nano /usr/local/bin/disable_bd_prochot.sh << EOL
+#!/bin/bash; modprobe msr; rdmsr 0x1FC; wrmsr 0x1FC value
+EOL
 
 sudo chmod +x /usr/local/bin/disable_bd_prochot.sh
 
 sudo nano /etc/systemd/system/disable_bd_prochot.service << EOF
-[Unit]
-Description=Disabilita BD PROCHOT
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/disable_bd_prochot.sh
-
-[Install]
-WantedBy=multi-user.target
+[Unit] Description=Disable BD PROCHOT [Service] Type=oneshot ExecStart=/usr/local/bin/disable_bd_prochot.sh [Install] WantedBy=multi-user.target
 EOF
 
 sudo systemctl enable disable_bd_prochot.service
 
 while true; do
-	read -rp "Vuoi riavviare il sistema? [y/N]: " yn
+	read -rp "Do you want to reboot the system? [y/N]: " yn
 		case $yn in
 			[Yy]* ) sudo reboot; break;;
 			[Nn]* ) exit;;
-			* ) printf "Errore: scrivi solo 'y' o 'n'\n";;
+			* ) printf "Error: only write 'y' or 'n'\n";;
 esac
 done
