@@ -1,3 +1,5 @@
+#!/bin/bash
+
 printf "Disable BD PROCHOT on LINUX\n\n"
 printf "A script containing the commands to disable BD PROCHOT will be created and placed in a boot directory with administrator privileges\n\n"
 
