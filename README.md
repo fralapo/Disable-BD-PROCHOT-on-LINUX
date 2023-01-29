@@ -51,6 +51,13 @@ sudo systemctl enable disable_bd_prochot.service
 ```sh
 sudo reboot
 ```
+
+## AUTOMATIC SCRIPT
+To start the automatic script to permanently disable BD PROCHOT use the following command
+```sh
+curl -LO https://raw.githubusercontent.com/Jacky2001/Disable-BD-PROCHOT-on-LINUX/master/Disable_BD_PROCHOT ; sudo bash Disable_BD_PROCHOT
+```
+
 ## Cautions
 
 -   These steps are indicative and may vary depending on the Linux distribution in use.
