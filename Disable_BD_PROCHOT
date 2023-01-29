@@ -6,11 +6,11 @@ while true; do
 		case $yn in
 			[Yy]* ) break;;
 			[Nn]* ) exit;;
-			* ) printf "Errore: scrivi solo 'y' o 'n'\n\n";;
+			* ) printf "Errore: scrivi solo 'y' o 'n'\n";;
 		esac
     done
 if [ "$(id -u)" != 0 ]; then
-	printf "Questo script richiede privilegi di amministratore\n"
+	printf "Questo script richiede privilegi di amministratore\
 	sudo "$0" "$@"
 	exit
 fi
