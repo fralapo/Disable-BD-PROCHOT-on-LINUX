@@ -1,29 +1,29 @@
 #!/bin/bash
 
-printf "Disable BD PROCHOT on LINUX\n\n"
-printf "A script containing the commands to disable BD PROCHOT will be created and placed in a boot directory with administrator privileges\n\n"
+echo "Disable BD PROCHOT on LINUX\n\n"
+echo "A script containing the commands to disable BD PROCHOT will be created and placed in a boot directory with administrator privileges\n\n"
 
 while true; do
 	read -rp "Do you wish to continue? [y/N]: " yn
 		case $yn in
 			[Yy]* ) break;;
 			[Nn]* ) exit;;
-			* ) printf "Error: just write 'y' or 'n'\n\n";;
+			* ) echo "Error: just write 'y' or 'n'\n\n";;
 		esac
     done
 
 if [ "$(id -u)" != 0 ]; then
-	printf "This script requires administrator privileges\n"
+	echo "This script requires administrator privileges\n"
 	sudo "$0" "$@"
 	exit
 fi
 
-printf "Installing needed packages..\n\n"
-printf "Which distribution do you want to install for?\n\n"
-printf "1. Arch Linux\n"
-printf "2. Ubuntu and derivatives\n"
-printf "3. Fedora and derivatives\n"
-printf "4. CentOS\n\n"
+echo "Installing needed packages..\n\n"
+echo "Which distribution do you want to install for?\n\n"
+echo "1. Arch Linux\n"
+echo "2. Ubuntu and derivatives\n"
+echo "3. Fedora and derivatives\n"
+echo "4. CentOS\n\n"
 
 while true; do
 	read -rp "Choose an option [1/2/3/4]: " option
@@ -32,7 +32,7 @@ while true; do
 			2 ) sudo apt-get install msr-tools; break;;
 			3 ) sudo dnf install msr-tools; break;;
 			4 ) sudo yum install msr-tools; break;;
-			* ) printf "Error: just write a number between 1 and 4\n\n";;
+			* ) echo "Error: just write a number between 1 and 4\n\n";;
 		esac
     done
 
@@ -64,6 +64,6 @@ while true; do
 		case $yn in
 			[Yy]* ) sudo reboot; break;;
 			[Nn]* ) exit;;
-			* ) printf "Error: just write 'y' or 'n'\n\n";;
+			* ) echo "Error: just write 'y' or 'n'\n\n";;
 		esac
     done
