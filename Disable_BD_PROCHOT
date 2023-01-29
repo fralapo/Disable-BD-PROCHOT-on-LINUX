@@ -9,13 +9,11 @@ while true; do
 			* ) printf "Errore: scrivi solo 'y' o 'n'\n\n";;
 		esac
     done
-
 if [ "$(id -u)" != 0 ]; then
 	printf "Questo script richiede privilegi di amministratore\n"
 	sudo "$0" "$@"
 	exit
 fi
-
 printf "Installazione dei pacchetti necessari...\n\n"
 printf "Per quale distribuzione vuoi installare?\n\n"
 printf "1. Arch Linux\n"
@@ -33,7 +31,7 @@ while true; do
 			* ) printf "Errore: scrivi solo un numero tra 1 e 4\n\n";;
 		esac
     done
-
+    
 sudo nano /usr/local/bin/disable_bd_prochot.sh << EOF
 #!/bin/bash
 modprobe msr
