@@ -1,64 +1,111 @@
 # Disable-BD-PROCHOT-on-LINUX
-This repository provides steps to disable BD PROCHOT at boot time in a Linux system.
-## Prerequisites
-- [msr-tools](https://github.com/Intel/msr-tools)
-	- Arch Linux:
-	```sudo pacman -S msr-tools```
-	- Ubuntu and derivatives:
-	```sudo apt-get install msr-tools```
-	- Fedora and derivatives:
-	```sudo dnf install msr-tools```
-	- CentOS:
-	```sudo yum install msr-tools```
 
-## Steps
-<b>1. Creates a script containing the desired commands:</b>
-```sh
-sudo nano /usr/local/bin/disable_bd_prochot.sh
-```
-<b>2.  Insert the following commands into the script:</b>
-```sh
-#!/bin/bash
-modprobe msr
-rdmsr 0x1FC
-wrmsr 0x1FC value
-```
-<b>3.  Assign execution permissions to the script:</b>
+This repository offers a method for disabling BD PROCHOT (Bi-Directional Processor Hot) on Linux systems at boot time. BD PROCHOT is a thermal throttling feature that allows external devices to signal the CPU to throttle down to avoid overheating. Disabling BD PROCHOT can help maintain performance if thermal throttling is happening prematurely, but it should be done with caution.
+
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Automatic Script](#automatic-script)
+- [Cautions](#cautions)
+- [License](#license)
+
+## Prerequisites
+
+Before proceeding, ensure you have `msr-tools` installed on your system. Here's how to install `msr-tools` on various Linux distributions:
+
+- Arch Linux:
+  ```bash
+  sudo pacman -S msr-tools
+  ```
+- Ubuntu and derivatives:
+  ```bash
+  sudo apt-get install msr-tools
+  ```
+- Fedora and derivatives:
+  ```bash
+  sudo dnf install msr-tools
+  ```
+- CentOS:
+  ```bash
+  sudo yum install msr-tools
+  ```
+
+## Installation
+
+### Step 1: Create the Script
+
+1. Open a terminal and run the following command to create a new script file:
+   ```sh
+   sudo nano /usr/local/bin/disable_bd_prochot.sh
+   ```
+2. Insert the following commands into the script:
+   ```bash
+   #!/bin/bash
+   modprobe msr
+   rdmsr 0x1FC
+   wrmsr 0x1FC value
+   ```
+3. Save and exit the editor (`Ctrl+O`, `Enter`, `Ctrl+X`).
+
+### Step 2: Make the Script Executable
+
+Assign execution permissions to the script:
 ```sh
 sudo chmod +x /usr/local/bin/disable_bd_prochot.sh
 ```
-<b>4.  Creates a service file to execute the script at start-up:</b>
-```sh
-sudo nano /etc/systemd/system/disable_bd_prochot.service
-```
-<b>5.  Insert the following content in the service file:</b>
-```sh
-[Unit]
-Description=Disable BD PROCHOT
 
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/disable_bd_prochot.sh
+### Step 3: Create a Service File
 
-[Install]
-WantedBy=multi-user.target
-```
-<b>6.  Activate the service:</b>
+1. Run the following command to create a new service file:
+   ```sh
+   sudo nano /etc/systemd/system/disable_bd_prochot.service
+   ```
+2. Insert the following content into the service file:
+   ```ini
+   [Unit]
+   Description=Disable BD PROCHOT
+
+   [Service]
+   Type=oneshot
+   ExecStart=/usr/local/bin/disable_bd_prochot.sh
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+3. Save and exit the editor.
+
+### Step 4: Enable the Service
+
+Enable the service to run at startup:
 ```sh
 sudo systemctl enable disable_bd_prochot.service
 ```
-<b>7.  Reboot the system to verify that commands are executed at start-up.</b>
+
+### Step 5: Reboot
+
+Reboot your system to verify the script executes at startup:
 ```sh
 sudo reboot
 ```
 
-## AUTOMATIC SCRIPT
-To start the automatic script to permanently disable BD PROCHOT use the following command
-```sh
-curl -LO https://raw.githubusercontent.com/Jacky2001/Disable-BD-PROCHOT-on-LINUX/master/Disable_BD_PROCHOT ; sudo bash Disable_BD_PROCHOT
+## Usage
+
+To disable BD PROCHOT automatically, you can use the provided script by running:
+```bash
+curl -LO https://raw.githubusercontent.com/fralapo/Disable-BD-PROCHOT-on-LINUX/master/Disable_BD_PROCHOT ; sudo bash Disable_BD_PROCHOT
 ```
+
+## Automatic Script
+
+For convenience, an automatic script is available. This script will perform all the necessary steps to disable BD PROCHOT on your system. Use the command shown in the [Usage](#usage) section to run it.
 
 ## Cautions
 
--   These steps are indicative and may vary depending on the Linux distribution in use.
--   It is possible that the commands will not work or cause problems for the system, so be very cautious and back up your data before proceeding.
+- The steps provided are indicative and might vary based on the Linux distribution you are using.
+- Disabling BD PROCHOT can lead to potential overheating issues. Proceed with caution and ensure your data is backed up before making any changes.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
