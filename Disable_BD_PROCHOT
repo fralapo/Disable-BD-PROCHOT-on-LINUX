@@ -26,7 +26,7 @@ while true; do
 		case $option in
 			1 ) sudo pacman -S msr-tools; break;;
 			2 ) sudo apt-get install msr-tools; break;;
-			3 ) sudo dnf install msr-tools; break;;
+			3 ) sudo rpm-ostree install msr-tools; break;;
 			4 ) sudo yum install msr-tools; break;;
 			* ) printf "Error: only write a number between 1 and 4";;
 		esac
