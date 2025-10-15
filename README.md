@@ -94,7 +94,7 @@ sudo reboot
 
 To disable BD PROCHOT automatically, you can use the provided script by running:
 ```bash
-curl -LO https://raw.githubusercontent.com/fralapo/Disable-BD-PROCHOT-on-LINUX/master/Disable_BD_PROCHOT ; sudo bash Disable_BD_PROCHOT
+curl -LO https://raw.githubusercontent.com/subjec2change/Disable-BD-PROCHOT-on-Bazzite/refs/heads/main/Disable_BD_PROCHOT ; sudo bash Disable_BD_PROCHOT
 ```
 
 ## Automatic Script
