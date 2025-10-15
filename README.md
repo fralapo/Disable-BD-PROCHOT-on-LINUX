@@ -25,7 +25,7 @@ Before proceeding, ensure you have `msr-tools` installed on your system. Here's 
   ```
 - Fedora and derivatives:
   ```bash
-  sudo dnf install msr-tools
+  sudo rpm-ostree install msr-tools
   ```
 - CentOS:
   ```bash
