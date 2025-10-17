@@ -71,7 +71,7 @@ sudo chmod +x /usr/local/bin/disable_bd_prochot.sh
    User=root
    Restart=always
    Type=oneshot
-   ExecStart=/usr/bin/bash -c /usr/local/bin/disable_bd_prochot.sh
+   ExecStart=/usr/local/bin/disable_bd_prochot.sh
    RemainAfterExit=yes
 
    [Install]
