@@ -91,7 +91,7 @@ Enable the service to run at startup:
 ```sh
 sudo systemctl daemon-reload
 sudo systemctl enable disable_bd_prochot.service
-sudo systemctl start  disable_bd_prochot.service
+sudo systemctl start disable_bd_prochot.service
 ```
 
 ### Step 5: Reboot
