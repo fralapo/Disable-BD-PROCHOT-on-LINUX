@@ -23,7 +23,7 @@ Before proceeding, ensure you have `msr-tools` installed on your system. Here's 
   ```bash
   sudo apt-get install msr-tools
   ```
-- Fedora and derivatives:
+- Bazzite and Fedora derivatives:
   ```bash
   sudo rpm-ostree install msr-tools
   ```
