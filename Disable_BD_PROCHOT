@@ -33,16 +33,20 @@ while true; do
     done
 
 sudo nano /usr/local/bin/disable_bd_prochot.sh << EOL
-#!/bin/bash; sudo modprobe msr; sudo rdmsr 0x1FC; sudo wrmsr 0x1FC 2c005d
+#!/bin/bash; modprobe msr; rdmsr 0x1FC; wrmsr 0x1FC 2c005d; modprobe msr; rdmsr 0x1FC; wrmsr 0x1FC 2c005d
 EOL
 
 sudo chmod +x /usr/local/bin/disable_bd_prochot.sh
 
 sudo nano /etc/systemd/system/disable_bd_prochot.service << EOF
-[Unit] Description=Disable BD PROCHOT [Service] User=root Restart=always Type=oneshot ExecStart=/usr/bin/bash -c /usr/local/bin/disable_bd_prochot.sh RemainAfterExit=yes [Install] WantedBy=multi-user.target
+[Unit] Description=Disable BD PROCHOT After=multi-user.target [Service] Type=oneshot ExecStart=/usr/local/bin/disable_bd_prochot.sh User=root Group=root RemainAfterExit=yes [Install] WantedBy=multi-user.target
 EOF
 
+sudo systemctl daemon-reload
 sudo systemctl enable disable_bd_prochot.service
+sudo systemctl start  disable_bd_prochot.service
+
+
 
 while true; do
 	read -rp "Do you want to reboot the system? [y/N]: " yn
