@@ -38,7 +38,7 @@ Before proceeding, ensure you have `msr-tools` installed on your system. Here's 
 
 1. Open a terminal and run the following command to create a new script file:
    ```sh
-   sudo nano /var/home/disable_bd_prochot.sh
+   sudo nano /usr/local/bin/disable_bd_prochot.sh
    ```
 2. Insert the following commands into the script:
    ```bash
@@ -53,7 +53,7 @@ Before proceeding, ensure you have `msr-tools` installed on your system. Here's 
 
 Assign execution permissions to the script:
 ```sh
-sudo chmod +x /var/home/disable_bd_prochot.sh
+sudo chmod +x /usr/local/bin/disable_bd_prochot.sh
 ```
 
 ### Step 3: Create a Service File
@@ -68,8 +68,10 @@ sudo chmod +x /var/home/disable_bd_prochot.sh
    Description=Disable BD PROCHOT
 
    [Service]
+   User=root
+   Restart=always
    Type=oneshot
-   ExecStart=/var/home/disable_bd_prochot.sh
+   ExecStart=/usr/bin/bash -c /usr/local/bin/disable_bd_prochot.sh
    RemainAfterExit=yes
 
    [Install]
