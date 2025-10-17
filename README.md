@@ -43,9 +43,13 @@ Before proceeding, ensure you have `msr-tools` installed on your system. Here's 
 2. Insert the following commands into the script:
    ```bash
    #!/bin/bash
-   sudo modprobe msr
-   sudo rdmsr 0x1FC
-   sudo wrmsr 0x1FC 2c005d
+   modprobe msr
+   rdmsr 0x1FC
+   wrmsr 0x1FC 2c005d
+   modprobe msr
+   rdmsr 0x1FC
+   wrmsr 0x1FC 2c005d
+
    ```
 3. Save and exit the editor (`Ctrl+O`, `Enter`, `Ctrl+X`).
 
@@ -66,16 +70,18 @@ sudo chmod +x /usr/local/bin/disable_bd_prochot.sh
    ```ini
    [Unit]
    Description=Disable BD PROCHOT
+   After=multi-user.target
 
    [Service]
-   User=root
-   Restart=always
    Type=oneshot
    ExecStart=/usr/local/bin/disable_bd_prochot.sh
+   User=root
+   Group=root
    RemainAfterExit=yes
 
    [Install]
    WantedBy=multi-user.target
+
    ```
 3. Save and exit the editor.
 
@@ -83,7 +89,9 @@ sudo chmod +x /usr/local/bin/disable_bd_prochot.sh
 
 Enable the service to run at startup:
 ```sh
+sudo systemctl daemon-reload
 sudo systemctl enable disable_bd_prochot.service
+sudo systemctl start  disable_bd_prochot.service
 ```
 
 ### Step 5: Reboot
