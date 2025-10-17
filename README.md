@@ -45,7 +45,7 @@ Before proceeding, ensure you have `msr-tools` installed on your system. Here's 
    #!/bin/bash
    sudo modprobe msr
    sudo rdmsr 0x1FC
-   sudo wrmsr 0x1FC value
+   sudo wrmsr 0x1FC 2c005d
    ```
 3. Save and exit the editor (`Ctrl+O`, `Enter`, `Ctrl+X`).
 
