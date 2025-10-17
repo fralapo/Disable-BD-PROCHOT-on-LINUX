@@ -32,14 +32,14 @@ while true; do
 		esac
     done
 
-sudo nano /var/home/disable_bd_prochot.sh << EOL
+sudo nano /usr/local/bin/disable_bd_prochot.sh << EOL
 #!/bin/bash; sudo modprobe msr; sudo rdmsr 0x1FC; sudo wrmsr 0x1FC 2c005d
 EOL
 
-sudo chmod +x /var/home/disable_bd_prochot.sh
+sudo chmod +x /usr/local/bin/disable_bd_prochot.sh
 
 sudo nano /etc/systemd/system/disable_bd_prochot.service << EOF
-[Unit] Description=Disable BD PROCHOT [Service] Type=oneshot ExecStart=/var/home/disable_bd_prochot.sh RemainAfterExit=yes [Install] WantedBy=multi-user.target
+[Unit] Description=Disable BD PROCHOT [Service] User=root Restart=always Type=oneshot ExecStart=/usr/bin/bash -c /usr/local/bin/disable_bd_prochot.sh RemainAfterExit=yes [Install] WantedBy=multi-user.target
 EOF
 
 sudo systemctl enable disable_bd_prochot.service
