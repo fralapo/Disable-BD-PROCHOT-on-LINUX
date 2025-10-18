@@ -1,4 +1,4 @@
-# Disable-BD-PROCHOT-on-LINUX
+# Disable BD PROCHOT on LINUX
 
 This repository offers a method for disabling BD PROCHOT (Bi-Directional Processor Hot) on Linux systems at boot time. BD PROCHOT is a thermal throttling feature that allows external devices to signal the CPU to throttle down to avoid overheating. Disabling BD PROCHOT can help maintain performance if thermal throttling is happening prematurely, but it should be done with caution.
 
