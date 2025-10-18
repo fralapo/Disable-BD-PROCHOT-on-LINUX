@@ -23,9 +23,9 @@ Before proceeding, ensure you have `msr-tools` installed on your system. Here's 
   ```bash
   sudo apt-get install msr-tools
   ```
-- Fedora and derivatives:
+- Bazzite and Fedora derivatives:
   ```bash
-  sudo dnf install msr-tools
+  sudo rpm-ostree install msr-tools
   ```
 - CentOS:
   ```bash
@@ -45,7 +45,11 @@ Before proceeding, ensure you have `msr-tools` installed on your system. Here's 
    #!/bin/bash
    modprobe msr
    rdmsr 0x1FC
-   wrmsr 0x1FC value
+   wrmsr 0x1FC 2c005d
+   modprobe msr
+   rdmsr 0x1FC
+   wrmsr 0x1FC 2c005d
+
    ```
 3. Save and exit the editor (`Ctrl+O`, `Enter`, `Ctrl+X`).
 
@@ -66,13 +70,18 @@ sudo chmod +x /usr/local/bin/disable_bd_prochot.sh
    ```ini
    [Unit]
    Description=Disable BD PROCHOT
+   After=multi-user.target
 
    [Service]
    Type=oneshot
    ExecStart=/usr/local/bin/disable_bd_prochot.sh
+   User=root
+   Group=root
+   RemainAfterExit=yes
 
    [Install]
    WantedBy=multi-user.target
+
    ```
 3. Save and exit the editor.
 
@@ -80,7 +89,9 @@ sudo chmod +x /usr/local/bin/disable_bd_prochot.sh
 
 Enable the service to run at startup:
 ```sh
+sudo systemctl daemon-reload
 sudo systemctl enable disable_bd_prochot.service
+sudo systemctl start disable_bd_prochot.service
 ```
 
 ### Step 5: Reboot
@@ -94,7 +105,7 @@ sudo reboot
 
 To disable BD PROCHOT automatically, you can use the provided script by running:
 ```bash
-curl -LO https://raw.githubusercontent.com/fralapo/Disable-BD-PROCHOT-on-LINUX/master/Disable_BD_PROCHOT ; sudo bash Disable_BD_PROCHOT
+curl -LO https://raw.githubusercontent.com/subjec2change/Disable-BD-PROCHOT-on-Bazzite/refs/heads/main/Disable_BD_PROCHOT ; sudo bash Disable_BD_PROCHOT
 ```
 
 ## Automatic Script

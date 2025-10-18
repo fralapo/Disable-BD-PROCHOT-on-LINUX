@@ -26,23 +26,27 @@ while true; do
 		case $option in
 			1 ) sudo pacman -S msr-tools; break;;
 			2 ) sudo apt-get install msr-tools; break;;
-			3 ) sudo dnf install msr-tools; break;;
+			3 ) sudo rpm-ostree install msr-tools; break;;
 			4 ) sudo yum install msr-tools; break;;
 			* ) printf "Error: only write a number between 1 and 4";;
 		esac
     done
 
 sudo nano /usr/local/bin/disable_bd_prochot.sh << EOL
-#!/bin/bash; modprobe msr; rdmsr 0x1FC; wrmsr 0x1FC value
+#!/bin/bash; modprobe msr; rdmsr 0x1FC; wrmsr 0x1FC 2c005d; modprobe msr; rdmsr 0x1FC; wrmsr 0x1FC 2c005d
 EOL
 
 sudo chmod +x /usr/local/bin/disable_bd_prochot.sh
 
 sudo nano /etc/systemd/system/disable_bd_prochot.service << EOF
-[Unit] Description=Disable BD PROCHOT [Service] Type=oneshot ExecStart=/usr/local/bin/disable_bd_prochot.sh [Install] WantedBy=multi-user.target
+[Unit] Description=Disable BD PROCHOT After=multi-user.target [Service] Type=oneshot ExecStart=/usr/local/bin/disable_bd_prochot.sh User=root Group=root RemainAfterExit=yes [Install] WantedBy=multi-user.target
 EOF
 
+sudo systemctl daemon-reload
 sudo systemctl enable disable_bd_prochot.service
+sudo systemctl start  disable_bd_prochot.service
+
+
 
 while true; do
 	read -rp "Do you want to reboot the system? [y/N]: " yn
