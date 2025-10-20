@@ -10,6 +10,7 @@ This repository offers a comprehensive method for disabling BD PROCHOT (Bi-Direc
 - [How It Works](#how-it-works)
 - [Troubleshooting](#troubleshooting)
 - [Cautions](#cautions)
+- [Uninstallation](#uninstallation)
 - [License](#license)
 
 ## Prerequisites
@@ -264,6 +265,89 @@ lsmod | grep msr
 - **Backup Your Data**: Always backup important data before making system-level changes.
 
 **Recommended**: Use thermal monitoring tools like `sensors` or `htop` to keep an eye on temperatures after disabling BD PROCHOT.
+
+## Uninstallation
+
+If you want to remove BD PROCHOT disabler and restore the default thermal management behavior, you can use the uninstall script.
+
+### Automatic Uninstallation (Recommended)
+
+Run the following command:
+```
+curl -LO https://raw.githubusercontent.com/fralapo/Disable-BD-PROCHOT-on-LINUX/main/Uninstall_BD_PROCHOT
+sudo bash Uninstall_BD_PROCHOT
+```
+
+The script will:
+1. Stop the disable_bd_prochot service
+2. Disable the service from running at boot
+3. Remove the systemd service file
+4. Remove the main disable script
+5. Remove the suspend/resume hook
+6. Reload systemd daemon
+
+After uninstallation, BD PROCHOT will be re-enabled and your CPU will return to normal thermal throttling behavior.
+
+### Manual Uninstallation
+
+If you prefer to uninstall manually, follow these steps:
+
+#### Step 1: Stop and Disable the Service
+
+```
+sudo systemctl stop disable_bd_prochot.service
+sudo systemctl disable disable_bd_prochot.service
+```
+
+#### Step 2: Remove the Service File
+
+```
+sudo rm /etc/systemd/system/disable_bd_prochot.service
+```
+
+#### Step 3: Remove the Main Script
+
+```
+sudo rm /usr/local/bin/disable_bd_prochot.sh
+```
+
+#### Step 4: Remove the Sleep Hook
+
+```
+# Try both locations (depends on your distribution)
+sudo rm /usr/lib/systemd/system-sleep/disable_bd_prochot
+sudo rm /lib/systemd/system-sleep/disable_bd_prochot
+```
+
+#### Step 5: Reload Systemd
+
+```
+sudo systemctl daemon-reload
+sudo systemctl reset-failed
+```
+
+#### Step 6: Reboot
+
+Reboot your system for changes to take full effect:
+```
+sudo reboot
+```
+
+After rebooting, verify that BD PROCHOT is active again:
+
+```
+sudo rdmsr -a 0x1FC
+```
+
+Look at the **last digit** of the result:
+- **Even digit** (0, 2, 4, 6, 8, A, C, E) = BD PROCHOT **disabled** ✓
+- **Odd digit** (1, 3, 5, 7, 9, B, D, F) = BD PROCHOT **active** ✗
+
+**Examples:**
+```
+2c005c  → Last digit 'c' (even) = disabled ✓
+2c005d  → Last digit 'd' (odd) = active ✗
+```
 
 ## License
 
