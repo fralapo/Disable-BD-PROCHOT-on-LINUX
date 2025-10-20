@@ -1,6 +1,6 @@
 # Disable BD PROCHOT on LINUX
 
-This repository offers a comprehensive method for disabling BD PROCHOT (Bi-Directional Processor Hot) on Linux systems at boot time and after resume from suspend. BD PROCHOT is a thermal throttling feature that allows external devices to signal the CPU to throttle down to avoid overheating. Disabling BD PROCHOT can help maintain performance if thermal throttling is happening prematurely, but it should be done with caution[web:25][web:27].
+This repository offers a comprehensive method for disabling BD PROCHOT (Bi-Directional Processor Hot) on Linux systems at boot time and after resume from suspend. BD PROCHOT is a thermal throttling feature that allows external devices to signal the CPU to throttle down to avoid overheating. Disabling BD PROCHOT can help maintain performance if thermal throttling is happening prematurely, but it should be done with caution.
 
 ## Table of Contents
 
@@ -37,7 +37,7 @@ Before proceeding, ensure you have `msr-tools` installed on your system. Here's 
 
 ### Automatic Installation (Recommended)
 
-The automated script handles all installation steps, including boot service and suspend/resume hooks[web:5][web:9].
+The automated script handles all installation steps, including boot service and suspend/resume hooks.
 
 Run the following command:
 ```
@@ -151,30 +151,30 @@ sudo reboot
 
 After installation, BD PROCHOT will be automatically disabled:
 - **At boot time** via the systemd service
-- **After resume from suspend** via the systemd sleep hook[web:9][web:11]
+- **After resume from suspend** via the systemd sleep hook
 
 To verify BD PROCHOT is disabled, check your CPU frequency:
 ```
 watch -n 1 cpufreq-info
 ```
 
-Your CPU should be able to reach its maximum frequency instead of being locked at 800 MHz[web:25].
+Your CPU should be able to reach its maximum frequency instead of being locked at 800 MHz.
 
 ## How It Works
 
-The solution implements two complementary mechanisms[web:5][web:9][web:27]:
+The solution implements two complementary mechanisms:
 
 ### Boot Service
-A systemd service (`disable_bd_prochot.service`) runs at system startup to disable BD PROCHOT by writing to the CPU's Model-Specific Register (MSR) 0x1FC[web:25].
+A systemd service (`disable_bd_prochot.service`) runs at system startup to disable BD PROCHOT by writing to the CPU's Model-Specific Register (MSR) 0x1FC.
 
 ### Suspend/Resume Hook
-A systemd sleep hook script in `/usr/lib/systemd/system-sleep/` automatically re-disables BD PROCHOT after the system resumes from suspend. This is necessary because entering ACPI S3 state (suspend) causes the BD PROCHOT MSR bit to be re-enabled by the system[web:27][web:11].
+A systemd sleep hook script in `/usr/lib/systemd/system-sleep/` automatically re-disables BD PROCHOT after the system resumes from suspend. This is necessary because entering ACPI S3 state (suspend) causes the BD PROCHOT MSR bit to be re-enabled by the system.
 
-When systemd suspends or resumes the system, it executes all scripts in the `system-sleep` directory with arguments indicating the sleep state[web:9][web:11]:
+When systemd suspends or resumes the system, it executes all scripts in the `system-sleep` directory with arguments indicating the sleep state:
 - `pre` - Before entering suspend
 - `post` - After resuming from suspend
 
-The hook script only acts on the `post` event to re-disable BD PROCHOT after wake-up[web:5].
+The hook script only acts on the `post` event to re-disable BD PROCHOT after wake-up.
 
 ## Troubleshooting
 
@@ -213,10 +213,10 @@ lsmod | grep msr
 
 ⚠️ **Important Safety Information:**
 
-- **Overheating Risk**: Disabling BD PROCHOT removes an important thermal protection mechanism. Monitor your CPU temperatures closely to prevent overheating[web:25][web:27].
-- **Hardware Damage**: In extreme cases, prolonged high temperatures can damage your CPU or other components. Use at your own risk[web:25].
-- **Warranty**: Modifying system registers may void your warranty[web:27].
-- **Broken Sensors**: This solution is primarily intended for systems where BD PROCHOT is triggered by faulty thermal sensors, not for bypassing legitimate thermal limits[web:25][web:27].
+- **Overheating Risk**: Disabling BD PROCHOT removes an important thermal protection mechanism. Monitor your CPU temperatures closely to prevent overheating.
+- **Hardware Damage**: In extreme cases, prolonged high temperatures can damage your CPU or other components. Use at your own risk.
+- **Warranty**: Modifying system registers may void your warranty.
+- **Broken Sensors**: This solution is primarily intended for systems where BD PROCHOT is triggered by faulty thermal sensors, not for bypassing legitimate thermal limits.
 - **Distribution Variations**: The steps provided may vary slightly based on your Linux distribution.
 - **Backup Your Data**: Always backup important data before making system-level changes.
 
