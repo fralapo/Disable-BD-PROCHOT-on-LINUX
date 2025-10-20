@@ -1,0 +1,98 @@
+#!/bin/bash
+
+printf "Uninstalling BD PROCHOT Disabler\n\n"
+printf "This script will remove all files and services created by the installation\n\n"
+
+while true; do
+    read -rp "Do you want to continue with uninstallation? [y/N]: " yn
+    case $yn in
+        [Yy]* ) break;;
+        [Nn]* ) exit;;
+        * ) printf "Error: write only 'y' or 'n'\n";;
+    esac
+done
+
+if [ "$(id -u)" != 0 ]; then
+    printf "This script requires administrator privileges\n"
+    sudo "$0" "$@"
+    exit
+fi
+
+printf "Starting uninstallation process...\n\n"
+
+# Stop the service if it's running
+printf "Stopping disable_bd_prochot service...\n"
+sudo systemctl stop disable_bd_prochot.service 2>/dev/null
+if [ $? -eq 0 ]; then
+    printf "✓ Service stopped\n"
+else
+    printf "⚠ Service was not running or already removed\n"
+fi
+
+# Disable the service
+printf "Disabling disable_bd_prochot service...\n"
+sudo systemctl disable disable_bd_prochot.service 2>/dev/null
+if [ $? -eq 0 ]; then
+    printf "✓ Service disabled\n"
+else
+    printf "⚠ Service was not enabled or already removed\n"
+fi
+
+# Remove the systemd service file
+printf "Removing systemd service file...\n"
+if [ -f "/etc/systemd/system/disable_bd_prochot.service" ]; then
+    sudo rm /etc/systemd/system/disable_bd_prochot.service
+    printf "✓ Service file removed\n"
+else
+    printf "⚠ Service file not found\n"
+fi
+
+# Remove the main script
+printf "Removing main script...\n"
+if [ -f "/usr/local/bin/disable_bd_prochot.sh" ]; then
+    sudo rm /usr/local/bin/disable_bd_prochot.sh
+    printf "✓ Main script removed\n"
+else
+    printf "⚠ Main script not found\n"
+fi
+
+# Remove the sleep hook script from both possible locations
+printf "Removing sleep hook scripts...\n"
+REMOVED=0
+
+if [ -f "/usr/lib/systemd/system-sleep/disable_bd_prochot" ]; then
+    sudo rm /usr/lib/systemd/system-sleep/disable_bd_prochot
+    printf "✓ Sleep hook removed from /usr/lib/systemd/system-sleep/\n"
+    REMOVED=1
+fi
+
+if [ -f "/lib/systemd/system-sleep/disable_bd_prochot" ]; then
+    sudo rm /lib/systemd/system-sleep/disable_bd_prochot
+    printf "✓ Sleep hook removed from /lib/systemd/system-sleep/\n"
+    REMOVED=1
+fi
+
+if [ $REMOVED -eq 0 ]; then
+    printf "⚠ Sleep hook not found\n"
+fi
+
+# Reload systemd daemon
+printf "\nReloading systemd daemon...\n"
+sudo systemctl daemon-reload
+printf "✓ Systemd daemon reloaded\n"
+
+# Reset systemd failed state
+sudo systemctl reset-failed 2>/dev/null
+
+printf "\n✓ Uninstallation complete!\n"
+printf "\nBD PROCHOT has been re-enabled and will be active after the next reboot.\n"
+printf "Your CPU will return to normal thermal management behavior.\n\n"
+
+while true; do
+    read -rp "Do you want to reboot the system now? [y/N]: " yn
+    case $yn in
+        [Yy]* ) sudo reboot; break;;
+        [Nn]* ) printf "\nPlease reboot manually for changes to take full effect.\n"; exit;;
+        * ) printf "Error: only write 'y' or 'n'\n";;
+    esac
+done
