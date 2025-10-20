@@ -1,58 +1,106 @@
 #!/bin/bash
 printf "Disabling BD PROCHOT in LINUX\n\n"
-printf "This script containing the commands to disable BD PROCHOT will be created and placed in a boot directory with administrator privileges\n\n"
+printf "This script will create the commands to disable BD PROCHOT at boot and after resume from suspend\n\n"
+
 while true; do
-	read -rp "Do you want to continue? [y/N]: " yn
-		case $yn in
-			[Yy]* ) break;;
-			[Nn]* ) exit;;
-			* ) printf "Error: write only 'y' or 'n'\n";;
-		esac
-    done
+    read -rp "Do you want to continue? [y/N]: " yn
+    case $yn in
+        [Yy]* ) break;;
+        [Nn]* ) exit;;
+        * ) printf "Error: write only 'y' or 'n'\n";;
+    esac
+done
+
 if [ "$(id -u)" != 0 ]; then
-	printf "This script requires administrator privileges\
-	sudo "$0" "$@" "
-	exit
+    printf "This script requires administrator privileges\n"
+    sudo "$0" "$@"
+    exit
 fi
+
 printf "Installation of necessary packages...\n\n"
 printf "Which distribution do you want to install?\n\n"
 printf "1. Arch Linux\n"
-printf "2. Ubuntu e derivati\n"
-printf "3. Fedora e derivati\n"
+printf "2. Ubuntu and derivatives\n"
+printf "3. Fedora and derivatives\n"
 printf "4. CentOS\n\n"
 
 while true; do
-	read -rp "Choose an option [1/2/3/4]: " option
-		case $option in
-			1 ) sudo pacman -S msr-tools; break;;
-			2 ) sudo apt-get install msr-tools; break;;
-			3 ) sudo rpm-ostree install msr-tools; break;;
-			4 ) sudo yum install msr-tools; break;;
-			* ) printf "Error: only write a number between 1 and 4";;
-		esac
-    done
+    read -rp "Choose an option [1/2/3/4]: " option
+    case $option in
+        1 ) sudo pacman -S msr-tools; break;;
+        2 ) sudo apt-get install msr-tools; break;;
+        3 ) sudo rpm-ostree install msr-tools; break;;
+        4 ) sudo yum install msr-tools; break;;
+        * ) printf "Error: only write a number between 1 and 4\n";;
+    esac
+done
 
-sudo nano /usr/local/bin/disable_bd_prochot.sh << EOL
-#!/bin/bash; modprobe msr; rdmsr 0x1FC; wrmsr 0x1FC 2c005d; modprobe msr; rdmsr 0x1FC; wrmsr 0x1FC 2c005d
+# Create the main disable script
+cat > /usr/local/bin/disable_bd_prochot.sh << 'EOL'
+#!/bin/bash
+modprobe msr
+rdmsr 0x1FC
+wrmsr 0x1FC 2c005d
+modprobe msr
+rdmsr 0x1FC
+wrmsr 0x1FC 2c005d
 EOL
 
-sudo chmod +x /usr/local/bin/disable_bd_prochot.sh
+chmod +x /usr/local/bin/disable_bd_prochot.sh
 
-sudo nano /etc/systemd/system/disable_bd_prochot.service << EOF
-[Unit] Description=Disable BD PROCHOT After=multi-user.target [Service] Type=oneshot ExecStart=/usr/local/bin/disable_bd_prochot.sh User=root Group=root RemainAfterExit=yes [Install] WantedBy=multi-user.target
+# Create systemd service for boot
+cat > /etc/systemd/system/disable_bd_prochot.service << 'EOF'
+[Unit]
+Description=Disable BD PROCHOT
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/disable_bd_prochot.sh
+User=root
+Group=root
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
 EOF
+
+# Create sleep hook script for suspend/resume
+cat > /usr/lib/systemd/system-sleep/disable_bd_prochot << 'SLEEP_HOOK'
+#!/bin/sh
+# Script to re-disable BD PROCHOT after resume from suspend
+
+case $1 in
+    post)
+        # Re-disable BD PROCHOT after resume
+        modprobe msr
+        wrmsr 0x1FC 2c005d
+        ;;
+esac
+SLEEP_HOOK
+
+chmod +x /usr/lib/systemd/system-sleep/disable_bd_prochot
+
+# If /usr/lib doesn't exist (some distributions use /lib), create a copy there
+if [ ! -d "/usr/lib/systemd/system-sleep" ]; then
+    mkdir -p /lib/systemd/system-sleep
+    cp /usr/lib/systemd/system-sleep/disable_bd_prochot /lib/systemd/system-sleep/
+fi
+
+printf "\n✓ Boot service created\n"
+printf "✓ Suspend/resume hook created\n\n"
 
 sudo systemctl daemon-reload
 sudo systemctl enable disable_bd_prochot.service
-sudo systemctl start  disable_bd_prochot.service
+sudo systemctl start disable_bd_prochot.service
 
-
+printf "✓ Service enabled and started\n\n"
 
 while true; do
-	read -rp "Do you want to reboot the system? [y/N]: " yn
-		case $yn in
-			[Yy]* ) sudo reboot; break;;
-			[Nn]* ) exit;;
-			* ) printf "Error: only write 'y' or 'n'\n";;
-esac
+    read -rp "Do you want to reboot the system? [y/N]: " yn
+    case $yn in
+        [Yy]* ) sudo reboot; break;;
+        [Nn]* ) printf "\nInstallation complete! Changes will take full effect after reboot.\n"; exit;;
+        * ) printf "Error: only write 'y' or 'n'\n";;
+    esac
 done
