@@ -153,12 +153,55 @@ After installation, BD PROCHOT will be automatically disabled:
 - **At boot time** via the systemd service
 - **After resume from suspend** via the systemd sleep hook
 
-To verify BD PROCHOT is disabled, check your CPU frequency:
+### Verify BD PROCHOT Status
+
+Check the MSR register:
+
 ```
-watch -n 1 cpufreq-info
+sudo rdmsr -a 0x1FC
 ```
 
-Your CPU should be able to reach its maximum frequency instead of being locked at 800 MHz.
+Look at the **last digit** of the result:
+- **Even digit** (0, 2, 4, 6, 8, A, C, E) = BD PROCHOT **disabled** ✓
+- **Odd digit** (1, 3, 5, 7, 9, B, D, F) = BD PROCHOT **active** ✗
+
+**Examples:**
+```
+2c005c  → Last digit 'c' (even) = disabled ✓
+2c005d  → Last digit 'd' (odd) = active ✗
+```
+
+### Verify CPU Frequency
+
+Monitor frequency in real-time:
+
+```
+watch -n 1 "lscpu | grep MHz"
+```
+
+**Expected output (BD PROCHOT disabled):**
+```
+CPU(s) scaling MHz:     80%      ← Varies between 20%-100%
+CPU max MHz:            4000.0000
+CPU min MHz:            400.0000
+```
+
+**Warning signs (BD PROCHOT still active):**
+```
+CPU(s) scaling MHz:     20%      ← Stuck at 20% (~800 MHz)
+CPU max MHz:            4000.0000
+CPU min MHz:            400.0000
+```
+
+If scaling is stuck at **20%**, it means your CPU is running at approximately **800 MHz** instead of reaching maximum frequency.
+
+### Alternative Command
+
+To see all core frequencies:
+
+```
+grep MHz /proc/cpuinfo
+```
 
 ## How It Works
 
