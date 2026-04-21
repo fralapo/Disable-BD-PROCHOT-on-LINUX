@@ -1,98 +1,71 @@
 #!/bin/bash
+set -u
 
 printf "Uninstalling BD PROCHOT Disabler\n\n"
-printf "This script will remove all files and services created by the installation\n\n"
+printf "This will remove every file and unit created by the installer, including\n"
+printf "the resume service used on both standard and immutable distributions.\n\n"
 
 while true; do
-    read -rp "Do you want to continue with uninstallation? [y/N]: " yn
+    read -rp "Continue with uninstallation? [y/N]: " yn
     case $yn in
         [Yy]* ) break;;
         [Nn]* ) exit;;
-        * ) printf "Error: write only 'y' or 'n'\n";;
+        * ) printf "Error: please answer 'y' or 'n'\n";;
     esac
 done
 
 if [ "$(id -u)" != 0 ]; then
     printf "This script requires administrator privileges\n"
-    sudo "$0" "$@"
-    exit
+    exec sudo "$0" "$@"
 fi
 
-printf "Starting uninstallation process...\n\n"
+printf "\nStopping and disabling services...\n"
+for unit in disable_bd_prochot.service disable_bd_prochot-resume.service; do
+    systemctl stop "$unit" 2>/dev/null && printf "✓ Stopped %s\n" "$unit" || printf "⚠ %s was not running\n" "$unit"
+    systemctl disable "$unit" 2>/dev/null && printf "✓ Disabled %s\n" "$unit" || printf "⚠ %s was not enabled\n" "$unit"
+done
 
-# Stop the service if it's running
-printf "Stopping disable_bd_prochot service...\n"
-sudo systemctl stop disable_bd_prochot.service 2>/dev/null
-if [ $? -eq 0 ]; then
-    printf "✓ Service stopped\n"
-else
-    printf "⚠ Service was not running or already removed\n"
+printf "\nRemoving unit files...\n"
+for unit_path in \
+    /etc/systemd/system/disable_bd_prochot.service \
+    /etc/systemd/system/disable_bd_prochot-resume.service; do
+    if [ -f "$unit_path" ]; then
+        rm -f "$unit_path" && printf "✓ Removed %s\n" "$unit_path"
+    fi
+done
+
+printf "\nRemoving legacy sleep hooks (if any)...\n"
+for legacy in /usr/lib/systemd/system-sleep/disable_bd_prochot /lib/systemd/system-sleep/disable_bd_prochot; do
+    if [ -e "$legacy" ]; then
+        rm -f "$legacy" 2>/dev/null && printf "✓ Removed %s\n" "$legacy" \
+            || printf "⚠ Could not remove %s (read-only filesystem — safe to ignore)\n" "$legacy"
+    fi
+done
+
+printf "\nRemoving worker script...\n"
+if [ -f /usr/local/bin/disable_bd_prochot.sh ]; then
+    rm -f /usr/local/bin/disable_bd_prochot.sh && printf "✓ Worker script removed\n"
 fi
 
-# Disable the service
-printf "Disabling disable_bd_prochot service...\n"
-sudo systemctl disable disable_bd_prochot.service 2>/dev/null
-if [ $? -eq 0 ]; then
-    printf "✓ Service disabled\n"
-else
-    printf "⚠ Service was not enabled or already removed\n"
+printf "\nRemoving msr module persistence...\n"
+if [ -f /etc/modules-load.d/msr.conf ]; then
+    rm -f /etc/modules-load.d/msr.conf && printf "✓ /etc/modules-load.d/msr.conf removed\n"
 fi
 
-# Remove the systemd service file
-printf "Removing systemd service file...\n"
-if [ -f "/etc/systemd/system/disable_bd_prochot.service" ]; then
-    sudo rm /etc/systemd/system/disable_bd_prochot.service
-    printf "✓ Service file removed\n"
-else
-    printf "⚠ Service file not found\n"
-fi
+printf "\nReloading systemd...\n"
+systemctl daemon-reload
+systemctl reset-failed 2>/dev/null || true
+printf "✓ Systemd reloaded\n"
 
-# Remove the main script
-printf "Removing main script...\n"
-if [ -f "/usr/local/bin/disable_bd_prochot.sh" ]; then
-    sudo rm /usr/local/bin/disable_bd_prochot.sh
-    printf "✓ Main script removed\n"
-else
-    printf "⚠ Main script not found\n"
-fi
-
-# Remove the sleep hook script from both possible locations
-printf "Removing sleep hook scripts...\n"
-REMOVED=0
-
-if [ -f "/usr/lib/systemd/system-sleep/disable_bd_prochot" ]; then
-    sudo rm /usr/lib/systemd/system-sleep/disable_bd_prochot
-    printf "✓ Sleep hook removed from /usr/lib/systemd/system-sleep/\n"
-    REMOVED=1
-fi
-
-if [ -f "/lib/systemd/system-sleep/disable_bd_prochot" ]; then
-    sudo rm /lib/systemd/system-sleep/disable_bd_prochot
-    printf "✓ Sleep hook removed from /lib/systemd/system-sleep/\n"
-    REMOVED=1
-fi
-
-if [ $REMOVED -eq 0 ]; then
-    printf "⚠ Sleep hook not found\n"
-fi
-
-# Reload systemd daemon
-printf "\nReloading systemd daemon...\n"
-sudo systemctl daemon-reload
-printf "✓ Systemd daemon reloaded\n"
-
-# Reset systemd failed state
-sudo systemctl reset-failed 2>/dev/null
-
-printf "\n✓ Uninstallation complete!\n"
-printf "\nBD PROCHOT has been re-enabled and will be active after the next reboot.\n"
-printf "Your CPU will return to normal thermal management behavior.\n\n"
+printf "\n✓ Uninstallation complete.\n"
+printf "BD PROCHOT will be re-enabled by the CPU on the next reboot and will resume\n"
+printf "normal thermal throttling behavior.\n\n"
 
 while true; do
-    read -rp "Do you want to reboot the system now? [y/N]: " yn
+    read -rp "Reboot now? [y/N]: " yn
     case $yn in
-        [Yy]* ) sudo reboot; break;;
-        [Nn]* ) printf "\nPlease reboot manually for changes to take full effect.\n"; exit;;
-        * ) printf "Error: only write 'y' or 'n'\n";;
+        [Yy]* ) reboot; break;;
+        [Nn]* ) printf "\nPlease reboot when convenient for changes to take full effect.\n"; exit;;
+        * ) printf "Error: please answer 'y' or 'n'\n";;
     esac
 done
