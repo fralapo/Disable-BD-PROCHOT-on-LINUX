@@ -1,367 +1,240 @@
-# Disable BD PROCHOT on LINUX
+<a id="readme-top"></a>
 
-This repository offers a comprehensive method for disabling BD PROCHOT (Bi-Directional Processor Hot) on Linux systems at boot time and after resume from suspend. BD PROCHOT is a thermal throttling feature that allows external devices to signal the CPU to throttle down to avoid overheating. Disabling BD PROCHOT can help maintain performance if thermal throttling is happening prematurely, but it should be done with caution.
+# Disable BD PROCHOT on Linux
+
+Stop BD PROCHOT from pinning your Intel CPU at ~800 MHz — at boot and after every resume from suspend.
+
+[![License: MIT](https://img.shields.io/github/license/fralapo/Disable-BD-PROCHOT-on-LINUX?style=flat-square)](./LICENSE)
+[![Issues](https://img.shields.io/github/issues/fralapo/Disable-BD-PROCHOT-on-LINUX?style=flat-square)](https://github.com/fralapo/Disable-BD-PROCHOT-on-LINUX/issues)
+[![Stars](https://img.shields.io/github/stars/fralapo/Disable-BD-PROCHOT-on-LINUX?style=flat-square)](https://github.com/fralapo/Disable-BD-PROCHOT-on-LINUX/stargazers)
+
+BD PROCHOT (Bi-Directional PROCHOT) is an Intel feature that lets external chips (VRMs, chipset, thermal sensors) signal the CPU to throttle hard, even when the CPU itself is cool. On some laptops a dying battery or a misreporting sensor can pin the cores at 800 MHz indefinitely. This installer clears bit 0 of `MSR 0x1FC` so the CPU ignores those external signals, and it keeps clearing it after every sleep state.
 
 ## Table of Contents
 
+- [Who this is for](#who-this-is-for)
+- [What's new](#whats-new-april-2026)
 - [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Usage](#usage)
-- [How It Works](#how-it-works)
+- [Install](#install)
+- [Verify it worked](#verify-it-worked)
+- [How it works](#how-it-works)
 - [Troubleshooting](#troubleshooting)
+- [Uninstall](#uninstall)
 - [Cautions](#cautions)
-- [Uninstallation](#uninstallation)
 - [License](#license)
+
+## Who this is for
+
+Intel laptops (Sandy Bridge and newer) stuck at a low frequency because of a broken sensor or an overzealous EC, on:
+
+- Arch Linux
+- Ubuntu, Debian and derivatives
+- Fedora, CentOS, RHEL
+- Bazzite, Silverblue, Kinoite and other rpm-ostree immutable distros
+
+AMD CPUs don't expose `MSR 0x1FC` the same way, so this project is Intel-only.
+
+## What's new (April 2026)
+
+- **Works on immutable distros.** All unit files now live under `/etc/systemd/system/` (writable everywhere) instead of `/usr/lib/systemd/system-sleep/` (read-only on Bazzite / Silverblue / Kinoite). Fixes [#1](https://github.com/fralapo/Disable-BD-PROCHOT-on-LINUX/issues/1).
+- **Every sleep state is covered.** Resume runs after `suspend`, `hibernate`, `hybrid-sleep`, and `suspend-then-hibernate`.
+- **Correct MSR bit clearing.** The worker reads `MSR 0x1FC`, clears bit 0 with a bitmask, and writes the result back. No hardcoded hex that could be wrong on some CPUs.
+- **`msr` module is persisted** via `/etc/modules-load.d/msr.conf`, so the service has everything it needs at early boot.
 
 ## Prerequisites
 
-Before proceeding, ensure you have `msr-tools` installed on your system. Here's how to install `msr-tools` on various Linux distributions:
+`msr-tools`. The installer can fetch it for you; pick the right option when prompted.
 
-- **Arch Linux:**
-  ```
-  sudo pacman -S msr-tools
-  ```
-- **Ubuntu and derivatives:**
-  ```
-  sudo apt-get install msr-tools
-  ```
-- **Bazzite and Fedora derivatives:**
-  ```
-  sudo rpm-ostree install msr-tools
-  ```
-- **CentOS:**
-  ```
-  sudo yum install msr-tools
-  ```
+## Install
 
-## Installation
-
-### Automatic Installation (Recommended)
-
-The automated script handles all installation steps, including boot service and suspend/resume hooks.
-
-Run the following command:
-```
+```bash
 curl -LO https://raw.githubusercontent.com/fralapo/Disable-BD-PROCHOT-on-LINUX/main/Disable_BD_PROCHOT
 sudo bash Disable_BD_PROCHOT
 ```
 
-The script will:
-1. Install `msr-tools` for your distribution
-2. Create the BD PROCHOT disable script
-3. Set up a systemd service for boot execution
-4. Create a suspend/resume hook for post-suspend execution
-5. Enable and start the service
+The installer asks which package manager to use, then writes:
 
-### Manual Installation
+| Path | Purpose |
+|---|---|
+| `/usr/local/bin/disable_bd_prochot.sh` | worker that clears bit 0 of `MSR 0x1FC` |
+| `/etc/systemd/system/disable_bd_prochot.service` | runs the worker at boot |
+| `/etc/systemd/system/disable_bd_prochot-resume.service` | runs the worker on every resume |
+| `/etc/modules-load.d/msr.conf` | loads the `msr` kernel module at boot |
 
-If you prefer manual installation, follow these steps:
+On Bazzite and other rpm-ostree systems, `msr-tools` is layered into the next deployment; a reboot is required before the services can run. The installer warns you when this is the case.
 
-#### Step 1: Create the Main Script
+<details>
+<summary>Manual install (without running the installer)</summary>
 
-1. Open a terminal and create the script file:
-   ```
-   sudo nano /usr/local/bin/disable_bd_prochot.sh
-   ```
-2. Insert the following commands:
-   ```
-   #!/bin/bash
-   modprobe msr
-   rdmsr 0x1FC
-   wrmsr 0x1FC 2c005d
-   modprobe msr
-   rdmsr 0x1FC
-   wrmsr 0x1FC 2c005d
-   ```
-3. Save and exit (`Ctrl+O`, `Enter`, `Ctrl+X`)
+1. Install `msr-tools` with your package manager.
+2. Persist the `msr` module: `echo msr | sudo tee /etc/modules-load.d/msr.conf`.
+3. Create `/usr/local/bin/disable_bd_prochot.sh` (chmod 0755):
 
-#### Step 2: Make the Script Executable
+    ```bash
+    #!/bin/bash
+    set -e
+    modprobe msr 2>/dev/null || true
+    for cpu in /dev/cpu/[0-9]*; do
+        cpu_id="${cpu##*/cpu/}"; cpu_id="${cpu_id%%/*}"
+        cur=$(rdmsr -p "$cpu_id" 0x1FC)
+        new=$(( 16#$cur & ~1 ))
+        wrmsr -p "$cpu_id" 0x1FC "$(printf '0x%x' "$new")"
+    done
+    ```
 
-```
-sudo chmod +x /usr/local/bin/disable_bd_prochot.sh
-```
+4. Create `/etc/systemd/system/disable_bd_prochot.service`:
 
-#### Step 3: Create the Systemd Service
+    ```ini
+    [Unit]
+    Description=Disable BD PROCHOT at boot
+    After=multi-user.target
+    ConditionPathExists=/usr/local/bin/disable_bd_prochot.sh
 
-1. Create the service file:
-   ```
-   sudo nano /etc/systemd/system/disable_bd_prochot.service
-   ```
-2. Insert the following content:
-   ```
-   [Unit]
-   Description=Disable BD PROCHOT
-   After=multi-user.target
+    [Service]
+    Type=oneshot
+    ExecStart=/usr/local/bin/disable_bd_prochot.sh
+    RemainAfterExit=yes
 
-   [Service]
-   Type=oneshot
-   ExecStart=/usr/local/bin/disable_bd_prochot.sh
-   User=root
-   Group=root
-   RemainAfterExit=yes
+    [Install]
+    WantedBy=multi-user.target
+    ```
 
-   [Install]
-   WantedBy=multi-user.target
-   ```
-3. Save and exit
+5. Create `/etc/systemd/system/disable_bd_prochot-resume.service`:
 
-#### Step 4: Create the Suspend/Resume Hook
+    ```ini
+    [Unit]
+    Description=Disable BD PROCHOT on resume from suspend/hibernate
+    After=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+    ConditionPathExists=/usr/local/bin/disable_bd_prochot.sh
 
-1. Create the sleep hook script:
-   ```
-   sudo nano /usr/lib/systemd/system-sleep/disable_bd_prochot
-   ```
-   (Note: On some distributions like Ubuntu, use `/lib/systemd/system-sleep/` instead)
+    [Service]
+    Type=oneshot
+    ExecStart=/usr/local/bin/disable_bd_prochot.sh
 
-2. Insert the following content:
-   ```
-   #!/bin/sh
-   # Script to re-disable BD PROCHOT after resume from suspend
+    [Install]
+    WantedBy=suspend.target hibernate.target hybrid-sleep.target suspend-then-hibernate.target
+    ```
 
-   case $1 in
-       post)
-           # Re-disable BD PROCHOT after resume
-           modprobe msr
-           wrmsr 0x1FC 2c005d
-           ;;
-   esac
-   ```
-3. Save and exit
+6. Enable both:
 
-4. Make the hook executable:
-   ```
-   sudo chmod +x /usr/lib/systemd/system-sleep/disable_bd_prochot
-   ```
+    ```bash
+    sudo systemctl daemon-reload
+    sudo systemctl enable --now disable_bd_prochot.service
+    sudo systemctl enable disable_bd_prochot-resume.service
+    ```
 
-#### Step 5: Enable and Start the Service
+</details>
 
-```
-sudo systemctl daemon-reload
-sudo systemctl enable disable_bd_prochot.service
-sudo systemctl start disable_bd_prochot.service
-```
+<p align="right"><a href="#readme-top">back to top</a></p>
 
-#### Step 6: Reboot
+## Verify it worked
 
-Reboot your system to verify everything works:
-```
-sudo reboot
-```
-
-## Usage
-
-After installation, BD PROCHOT will be automatically disabled:
-- **At boot time** via the systemd service
-- **After resume from suspend** via the systemd sleep hook
-
-### Verify BD PROCHOT Status
-
-Check the MSR register:
-
-```
+```bash
 sudo rdmsr -a 0x1FC
 ```
 
-Look at the **last digit** of the result:
-- **Even digit** (0, 2, 4, 6, 8, A, C, E) = BD PROCHOT **disabled** ✓
-- **Odd digit** (1, 3, 5, 7, 9, B, D, F) = BD PROCHOT **active** ✗
+Look at the last hex digit of every line:
 
-**Examples:**
-```
-2c005c  → Last digit 'c' (even) = disabled ✓
-2c005d  → Last digit 'd' (odd) = active ✗
-```
+- even (`0 2 4 6 8 a c e`) → BD PROCHOT is disabled
+- odd (`1 3 5 7 9 b d f`) → still active
 
-### Verify CPU Frequency
+Quick example:
 
-Monitor frequency in real-time:
-
-```
-watch -n 1 "lscpu | grep MHz"
+```text
+2c005c   # last digit 'c', even → disabled
+2c005d   # last digit 'd', odd  → active
 ```
 
-**Expected output (BD PROCHOT disabled):**
-```
-CPU(s) scaling MHz:     80%      ← Varies between 20%-100%
-CPU max MHz:            4000.0000
-CPU min MHz:            400.0000
-```
+Check the cores aren't pinned low:
 
-**Warning signs (BD PROCHOT still active):**
-```
-CPU(s) scaling MHz:     20%      ← Stuck at 20% (~800 MHz)
-CPU max MHz:            4000.0000
-CPU min MHz:            400.0000
+```bash
+watch -n 1 'grep MHz /proc/cpuinfo'
 ```
 
-If scaling is stuck at **20%**, it means your CPU is running at approximately **800 MHz** instead of reaching maximum frequency.
+You should see frequencies moving freely up to the turbo ceiling, not stuck near 800 MHz.
 
-### Alternative Command
+## How it works
 
-To see all core frequencies:
+Two systemd oneshots share one worker script.
 
+At boot, `disable_bd_prochot.service` runs after `multi-user.target`. After every sleep state, `disable_bd_prochot-resume.service` runs the same worker. The resume unit is wired to `suspend.target`, `hibernate.target`, `hybrid-sleep.target`, and `suspend-then-hibernate.target` with both `After=` and `WantedBy=`. That combination is what the [Arch wiki Power management page](https://wiki.archlinux.org/title/Power_management/Suspend_and_hibernate) documents as the reliable pattern for "run on resume".
+
+The worker itself:
+
+```bash
+for cpu in /dev/cpu/[0-9]*; do
+    cpu_id="${cpu##*/cpu/}"
+    cpu_id="${cpu_id%%/*}"
+    current=$(rdmsr -p "$cpu_id" 0x1FC)
+    new=$(( 16#$current & ~1 ))          # clear bit 0
+    wrmsr -p "$cpu_id" 0x1FC "$(printf '0x%x' "$new")"
+done
 ```
-grep MHz /proc/cpuinfo
-```
 
-## How It Works
+`MSR 0x1FC` is `MSR_POWER_CTL` on Intel. Bit 0 is the BD PROCHOT enable bit: `1` means the CPU reacts to external PROCHOT assertions, `0` means it ignores them. The worker reads the current value, clears bit 0 with a bitmask, and writes the result back, so it stays correct regardless of what the other bits happen to be on your CPU.
 
-The solution implements two complementary mechanisms:
-
-### Boot Service
-A systemd service (`disable_bd_prochot.service`) runs at system startup to disable BD PROCHOT by writing to the CPU's Model-Specific Register (MSR) 0x1FC.
-
-### Suspend/Resume Hook
-A systemd sleep hook script in `/usr/lib/systemd/system-sleep/` automatically re-disables BD PROCHOT after the system resumes from suspend. This is necessary because entering ACPI S3 state (suspend) causes the BD PROCHOT MSR bit to be re-enabled by the system.
-
-When systemd suspends or resumes the system, it executes all scripts in the `system-sleep` directory with arguments indicating the sleep state:
-- `pre` - Before entering suspend
-- `post` - After resuming from suspend
-
-The hook script only acts on the `post` event to re-disable BD PROCHOT after wake-up.
+<p align="right"><a href="#readme-top">back to top</a></p>
 
 ## Troubleshooting
 
-### CPU still throttled after suspend
-If your CPU returns to 800 MHz after suspend, verify the sleep hook is installed correctly:
-```
-ls -l /usr/lib/systemd/system-sleep/disable_bd_prochot
-# or on some systems:
-ls -l /lib/systemd/system-sleep/disable_bd_prochot
-```
+### CPU still stuck at ~800 MHz after resume
 
-Ensure the script is executable:
-```
-sudo chmod +x /usr/lib/systemd/system-sleep/disable_bd_prochot
+Check both services are enabled:
+
+```bash
+systemctl is-enabled disable_bd_prochot.service
+systemctl is-enabled disable_bd_prochot-resume.service
 ```
 
-### Service not starting
-Check the service status:
-```
-sudo systemctl status disable_bd_prochot.service
-```
+The resume unit shows `inactive (dead)` between resumes. That is expected for a oneshot. What matters is `is-enabled` returning `enabled`.
 
-View logs for errors:
-```
-journalctl -u disable_bd_prochot.service
+Check the last run:
+
+```bash
+journalctl -u disable_bd_prochot-resume.service -b -1
 ```
 
-### MSR module not loading
-Ensure the `msr` kernel module is available:
-```
-sudo modprobe msr
-lsmod | grep msr
-```
+### `rdmsr: unknown command`
 
-## Cautions
+`msr-tools` is not installed. Re-run the installer or install it manually for your distro.
 
-⚠️ **Important Safety Information:**
+### `modprobe: FATAL: Module msr not found`
 
-- **Overheating Risk**: Disabling BD PROCHOT removes an important thermal protection mechanism. Monitor your CPU temperatures closely to prevent overheating.
-- **Hardware Damage**: In extreme cases, prolonged high temperatures can damage your CPU or other components. Use at your own risk.
-- **Warranty**: Modifying system registers may void your warranty.
-- **Broken Sensors**: This solution is primarily intended for systems where BD PROCHOT is triggered by faulty thermal sensors, not for bypassing legitimate thermal limits.
-- **Distribution Variations**: The steps provided may vary slightly based on your Linux distribution.
-- **Backup Your Data**: Always backup important data before making system-level changes.
+Some stripped kernels omit the MSR module. Confirm with `grep CONFIG_X86_MSR /boot/config-$(uname -r)` — you want `=y` or `=m`. If it is missing, you need a different kernel.
 
-**Recommended**: Use thermal monitoring tools like `sensors` or `htop` to keep an eye on temperatures after disabling BD PROCHOT.
+### Legacy installation leftover
 
-## Uninstallation
+Older versions of the installer wrote a sleep hook to `/usr/lib/systemd/system-sleep/disable_bd_prochot`. The current installer cleans that up automatically. If anything odd persists, run `Uninstall_BD_PROCHOT` and reinstall.
 
-If you want to remove BD PROCHOT disabler and restore the default thermal management behavior, you can use the uninstall script.
+<p align="right"><a href="#readme-top">back to top</a></p>
 
-### Automatic Uninstallation (Recommended)
+## Uninstall
 
-Run the following command:
-```
+```bash
 curl -LO https://raw.githubusercontent.com/fralapo/Disable-BD-PROCHOT-on-LINUX/main/Uninstall_BD_PROCHOT
 sudo bash Uninstall_BD_PROCHOT
 ```
 
-The script will:
-1. Stop the disable_bd_prochot service
-2. Disable the service from running at boot
-3. Remove the systemd service file
-4. Remove the main disable script
-5. Remove the suspend/resume hook
-6. Reload systemd daemon
+This removes every file listed in the install table, plus the legacy sleep hook if it still exists. BD PROCHOT is re-enabled at the next reboot.
 
-After uninstallation, BD PROCHOT will be re-enabled and your CPU will return to normal thermal throttling behavior.
+## Cautions
 
-### Manual Uninstallation
+Disabling BD PROCHOT removes one layer of thermal defense. If the external signal was real (actual overheating rather than a bad sensor), you now have no hardware-level brake. Keep an eye on temperatures:
 
-If you prefer to uninstall manually, follow these steps:
-
-#### Step 1: Stop and Disable the Service
-
-```
-sudo systemctl stop disable_bd_prochot.service
-sudo systemctl disable disable_bd_prochot.service
+```bash
+watch -n 1 sensors
 ```
 
-#### Step 2: Remove the Service File
-
-```
-sudo rm /etc/systemd/system/disable_bd_prochot.service
-```
-
-#### Step 3: Remove the Main Script
-
-```
-sudo rm /usr/local/bin/disable_bd_prochot.sh
-```
-
-#### Step 4: Remove the Sleep Hook
-
-```
-# Try both locations (depends on your distribution)
-sudo rm /usr/lib/systemd/system-sleep/disable_bd_prochot
-sudo rm /lib/systemd/system-sleep/disable_bd_prochot
-```
-
-#### Step 5: Reload Systemd
-
-```
-sudo systemctl daemon-reload
-sudo systemctl reset-failed
-```
-
-#### Step 6: Reboot
-
-Reboot your system for changes to take full effect:
-```
-sudo reboot
-```
-
-After rebooting, verify that BD PROCHOT is active again:
-
-```
-sudo rdmsr -a 0x1FC
-```
-
-Look at the **last digit** of the result:
-- **Even digit** (0, 2, 4, 6, 8, A, C, E) = BD PROCHOT **disabled** ✓
-- **Odd digit** (1, 3, 5, 7, 9, B, D, F) = BD PROCHOT **active** ✗
-
-**Examples:**
-```
-2c005c  → Last digit 'c' (even) = disabled ✓
-2c005d  → Last digit 'd' (odd) = active ✗
-```
+If the fans can't keep up, reverse the change by running `Uninstall_BD_PROCHOT`. This project targets the specific case where the throttle trigger is a faulty external signal, not a CPU that is actually overheating.
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Contributing
-
-Contributions are welcome! If you encounter issues or have improvements, please:
-1. Check existing issues on GitHub
-2. Open a new issue with detailed information
-3. Submit pull requests with clear descriptions
+MIT. See [LICENSE](./LICENSE).
 
 ## Acknowledgments
 
-- Thanks to the community members who identified the suspend/resume issue
-- Inspired by similar solutions like [ThrottleStop](https://www.techpowerup.com/download/techpowerup-throttlestop/) for Windows
-- Based on MSR manipulation techniques from the Linux kernel documentation
+- [ThrottleStop](https://www.techpowerup.com/download/techpowerup-throttlestop/) for the Windows-side prior art.
+- Intel MSR documentation for `MSR_POWER_CTL` (MSR 0x1FC).
+- Contributors who reported the post-suspend issue on immutable distros in [#1](https://github.com/fralapo/Disable-BD-PROCHOT-on-LINUX/issues/1).
+
+<p align="right"><a href="#readme-top">back to top</a></p>
