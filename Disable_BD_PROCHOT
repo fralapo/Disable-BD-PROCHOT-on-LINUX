@@ -21,6 +21,69 @@ if [ "$(id -u)" != 0 ]; then
     exec sudo "$0" "$@"
 fi
 
+# --- Kernel lockdown pre-check ---
+# When Secure Boot is enabled on Ubuntu / Mint / Debian / Fedora distro kernels,
+# the kernel lockdown LSM auto-engages in 'integrity' mode and blocks wrmsr writes
+# to /dev/cpu/*/msr with EPERM. Detect this before installing so the user knows
+# the services will fail until lockdown is lifted.
+LOCKDOWN_MODE="none"
+if [ -r /sys/kernel/security/lockdown ]; then
+    LOCKDOWN_MODE="$(awk -F'[][]' '/\[/ {print $2}' /sys/kernel/security/lockdown 2>/dev/null || true)"
+    [ -z "$LOCKDOWN_MODE" ] && LOCKDOWN_MODE="none"
+fi
+
+if [ "$LOCKDOWN_MODE" != "none" ]; then
+    printf "\n⚠ Kernel lockdown is active (mode: %s).\n" "$LOCKDOWN_MODE"
+    printf "  This will block MSR writes; the worker will fail with:\n"
+    printf "    wrmsr: pwrite: Operation not permitted\n\n"
+    printf "  Typical cause: Secure Boot enabled on a distro kernel that auto-locks\n"
+    printf "  (Ubuntu, Linux Mint, Debian, Fedora).\n\n"
+    printf "Choose how to proceed:\n"
+    printf "  1) Abort. Reboot into UEFI firmware, disable Secure Boot, then re-run\n"
+    printf "     this installer. Cleanest fix, no further steps required. (recommended)\n"
+    printf "  2) Run 'mokutil --disable-validation' now. Sets a one-time password;\n"
+    printf "     at the next reboot the MOK Manager menu asks you to confirm with\n"
+    printf "     that password. After confirmation, shim boots in insecure mode and\n"
+    printf "     kernel lockdown no longer engages. Reversible with\n"
+    printf "     'sudo mokutil --enable-validation'. Security impact is equivalent\n"
+    printf "     to disabling Secure Boot.\n"
+    printf "  3) Install anyway. Services will be created but the worker will fail\n"
+    printf "     on every run until you lift lockdown manually (see README\n"
+    printf "     Troubleshooting for the 'lsm=' GRUB cmdline workaround).\n"
+    printf "  4) Abort without doing anything.\n\n"
+    while true; do
+        read -rp "Choice [1/2/3/4]: " lkopt
+        case $lkopt in
+            1 ) printf "\nReboot → UEFI firmware → disable Secure Boot → re-run this installer.\n"; exit 0;;
+            2 )
+                if ! command -v mokutil >/dev/null 2>&1; then
+                    printf "Error: mokutil is not installed.\n"
+                    printf "  Debian/Ubuntu/Mint: sudo apt install mokutil\n"
+                    printf "  Fedora:             sudo dnf install mokutil\n"
+                    printf "  Arch:               sudo pacman -S mokutil (AUR)\n"
+                    printf "Install it, then re-run this script.\n"
+                    exit 1
+                fi
+                printf "\nRunning 'mokutil --disable-validation'.\n"
+                printf "Pick a one-time password (8-16 chars). You will type it again at the\n"
+                printf "MOK Management screen on next reboot to confirm.\n\n"
+                if mokutil --disable-validation; then
+                    printf "\n✓ Secure Boot validation queued for disable on next reboot.\n"
+                    printf "  Re-enable later with: sudo mokutil --enable-validation\n\n"
+                    break
+                else
+                    printf "\n✗ mokutil failed. Pick another option.\n\n"
+                fi
+                ;;
+            3 ) printf "\nProceeding. After install + reboot, verify with:\n"
+                printf "  sudo rdmsr -a 0x1FC    # if it errors with 'Operation not permitted', see README\n\n"
+                break;;
+            4 ) exit 0;;
+            * ) printf "Error: enter 1, 2, 3 or 4\n";;
+        esac
+    done
+fi
+
 printf "\nInstalling msr-tools...\n\n"
 printf "Which package manager do you want to use?\n\n"
 printf "1. Arch Linux (pacman)\n"
@@ -54,20 +117,44 @@ cat > /usr/local/bin/disable_bd_prochot.sh << 'EOL'
 #!/bin/bash
 # Disable BD PROCHOT by clearing bit 0 of MSR 0x1FC (MSR_POWER_CTL).
 # Uses dynamic bit masking so it stays correct across CPU models.
-
-set -e
+# Logs failures to the journal (tag: disable_bd_prochot) so kernel lockdown
+# or a missing msr module is visible in journalctl instead of silent exit.
 
 modprobe msr 2>/dev/null || true
 
-for cpu in /dev/cpu/[0-9]*; do
+shopt -s nullglob
+cpus=(/dev/cpu/[0-9]*)
+if [ ${#cpus[@]} -eq 0 ]; then
+    logger -t disable_bd_prochot "no /dev/cpu/*/msr devices — msr module unavailable"
+    exit 1
+fi
+
+if [ -r /sys/kernel/security/lockdown ]; then
+    mode="$(awk -F'[][]' '/\[/ {print $2}' /sys/kernel/security/lockdown 2>/dev/null || true)"
+    if [ -n "$mode" ] && [ "$mode" != "none" ]; then
+        logger -t disable_bd_prochot "kernel lockdown active (mode: $mode) — wrmsr will likely fail; see README"
+    fi
+fi
+
+fail=0
+for cpu in "${cpus[@]}"; do
     cpu_id="${cpu##*/cpu/}"
     cpu_id="${cpu_id%%/*}"
-    current_hex="$(rdmsr -p "$cpu_id" 0x1FC)"
+    if ! current_hex="$(rdmsr -p "$cpu_id" 0x1FC 2>/dev/null)"; then
+        logger -t disable_bd_prochot "rdmsr failed on cpu $cpu_id"
+        fail=1
+        continue
+    fi
     current_dec=$((16#${current_hex}))
     new_dec=$(( current_dec & ~1 ))
     new_hex=$(printf '%x' "$new_dec")
-    wrmsr -p "$cpu_id" 0x1FC "0x${new_hex}"
+    if ! wrmsr -p "$cpu_id" 0x1FC "0x${new_hex}" 2>/dev/null; then
+        logger -t disable_bd_prochot "wrmsr failed on cpu $cpu_id (Operation not permitted? kernel lockdown — see README)"
+        fail=1
+    fi
 done
+
+exit $fail
 EOL
 chmod 0755 /usr/local/bin/disable_bd_prochot.sh
 printf "✓ Worker script installed\n"

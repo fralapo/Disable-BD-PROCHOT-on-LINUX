@@ -40,6 +40,7 @@ AMD CPUs don't expose `MSR 0x1FC` the same way, so this project is Intel-only.
 - **Every sleep state is covered.** Resume runs after `suspend`, `hibernate`, `hybrid-sleep`, and `suspend-then-hibernate`.
 - **Correct MSR bit clearing.** The worker reads `MSR 0x1FC`, clears bit 0 with a bitmask, and writes the result back. No hardcoded hex that could be wrong on some CPUs.
 - **`msr` module is persisted** via `/etc/modules-load.d/msr.conf`, so the service has everything it needs at early boot.
+- **Kernel lockdown detection.** The installer checks `/sys/kernel/security/lockdown` up front and offers an interactive `mokutil --disable-validation` path when Secure Boot is blocking MSR writes. The worker logs the exact failure to the journal so kernel lockdown stops being a silent failure. Addresses [#4](https://github.com/fralapo/Disable-BD-PROCHOT-on-LINUX/issues/4).
 
 ## Prerequisites
 
@@ -72,14 +73,18 @@ On Bazzite and other rpm-ostree systems, `msr-tools` is layered into the next de
 
     ```bash
     #!/bin/bash
-    set -e
     modprobe msr 2>/dev/null || true
-    for cpu in /dev/cpu/[0-9]*; do
+    shopt -s nullglob
+    cpus=(/dev/cpu/[0-9]*)
+    [ ${#cpus[@]} -eq 0 ] && { logger -t disable_bd_prochot "no /dev/cpu/*/msr"; exit 1; }
+    fail=0
+    for cpu in "${cpus[@]}"; do
         cpu_id="${cpu##*/cpu/}"; cpu_id="${cpu_id%%/*}"
-        cur=$(rdmsr -p "$cpu_id" 0x1FC)
+        cur=$(rdmsr -p "$cpu_id" 0x1FC 2>/dev/null) || { logger -t disable_bd_prochot "rdmsr failed on cpu $cpu_id"; fail=1; continue; }
         new=$(( 16#$cur & ~1 ))
-        wrmsr -p "$cpu_id" 0x1FC "$(printf '0x%x' "$new")"
+        wrmsr -p "$cpu_id" 0x1FC "$(printf '0x%x' "$new")" 2>/dev/null || { logger -t disable_bd_prochot "wrmsr failed on cpu $cpu_id (kernel lockdown?)"; fail=1; }
     done
+    exit $fail
     ```
 
 4. Create `/etc/systemd/system/disable_bd_prochot.service`:
@@ -201,6 +206,67 @@ journalctl -u disable_bd_prochot-resume.service -b -1
 ### `modprobe: FATAL: Module msr not found`
 
 Some stripped kernels omit the MSR module. Confirm with `grep CONFIG_X86_MSR /boot/config-$(uname -r)` — you want `=y` or `=m`. If it is missing, you need a different kernel.
+
+### `wrmsr: pwrite: Operation not permitted`
+
+Kernel lockdown is blocking the MSR write. On distro kernels with Secure Boot enabled (Ubuntu, Linux Mint, Debian, Fedora) the lockdown LSM auto-engages in `integrity` mode and refuses `wrmsr` even as root.
+
+Diagnose:
+
+```bash
+cat /sys/kernel/security/lockdown
+# [none] integrity confidentiality       → not blocked
+# none [integrity] confidentiality       → blocked, wrmsr will fail
+```
+
+Pick one fix:
+
+**A — Disable Secure Boot (cleanest, recommended).**
+Reboot, enter UEFI firmware, set Secure Boot to *Disabled*, save and reboot. Re-run the installer. `lockdown` will be `[none]`. The installer's pre-check detects this automatically.
+
+**B — `mokutil --disable-validation` (no firmware access required).**
+The installer offers this interactively when it detects active lockdown. Manual equivalent:
+
+```bash
+sudo apt install mokutil          # or dnf / pacman
+sudo mokutil --disable-validation
+# pick an 8–16 char one-time password, reboot,
+# at the blue MOK Management screen choose:
+#   Change Secure Boot state → enter the same password → reboot
+```
+
+Shim will then boot in *insecure mode*; the kernel sees Secure Boot as disabled and never engages lockdown. Reversible with `sudo mokutil --enable-validation`. Security impact is equivalent to disabling Secure Boot at the firmware level.
+
+**C — Remove `lockdown` from the LSM cmdline (keeps firmware Secure Boot on).**
+Works on some Debian / Ubuntu builds, not all — newer distro kernels re-trigger lockdown from the Secure Boot path even when `lockdown` is missing from `lsm=`. Try it; if `/sys/kernel/security/lockdown` still shows `[integrity]` after reboot, fall back to A or B.
+
+```bash
+cat /sys/kernel/security/lsm
+# e.g. capability,lockdown,landlock,yama,...
+```
+
+Edit `/etc/default/grub`, append the LSM list **without** `lockdown` to `GRUB_CMDLINE_LINUX_DEFAULT`:
+
+```
+GRUB_CMDLINE_LINUX_DEFAULT="... lsm=capability,landlock,yama,..."
+```
+
+Then:
+
+```bash
+sudo update-grub        # Debian/Ubuntu/Mint
+# or: sudo grub2-mkconfig -o /boot/grub2/grub.cfg   # Fedora
+sudo reboot
+cat /sys/kernel/security/lockdown   # should show [none]
+```
+
+> `lockdown=none` on its own is **not** enough when Secure Boot is enabled: the kernel ignores it by design.
+
+After any of A/B/C, the installed services start working from the next boot or resume. Tail the journal to confirm:
+
+```bash
+journalctl -t disable_bd_prochot -b
+```
 
 ### Legacy installation leftover
 
